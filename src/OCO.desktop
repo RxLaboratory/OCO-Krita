@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=OCO
+X-Python-2-Compatible=false
+X-Krita-Manual=manual.html
+Name=OCO
+Comment=Exports Open Cut-Out format from Krita (a JSON format + PNG/EXR)
