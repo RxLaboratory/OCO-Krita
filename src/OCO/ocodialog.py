@@ -30,7 +30,8 @@ from PyQt5.QtWidgets import ( # pylint: disable=no-name-in-module #pylint: disab
     QCheckBox,
     QDialogButtonBox,
     QFrame,
-    QFileDialog
+    QFileDialog,
+    QSpinBox
 )
 from PyQt5.QtCore import (
     Qt,
@@ -47,12 +48,19 @@ class OCODialog(QDialog):
         formLayout = QFormLayout()
         directorySelectorLayout = QHBoxLayout()
         optionsLayout = QVBoxLayout()
+        rectSizeLayout = QHBoxLayout()
 
         self.__refreshButton = QPushButton(i18n("Refresh")) # pylint: disable=undefined-variable
         self.__directoryTextField = QLineEdit()
         self.__directoryDialogButton = QPushButton(i18n("...")) # pylint: disable=undefined-variable
         self.__exportReferenceCheckbox = QCheckBox(i18n("Export \"_reference_\" layers")) # pylint: disable=undefined-variable
         self.__exportInvisibleLayersCheckBox = QCheckBox(i18n("Export invisible layers")) # pylint: disable=undefined-variable
+        self.__cropToImageBounds = QCheckBox(i18n("Adjust export size to layer content")) # pylint: disable=undefined-variable
+
+        self.__rectWidthSpinBox = QSpinBox()
+        self.__rectHeightSpinBox = QSpinBox()
+        self.__rectWidthSpinBox.setRange(1, 10000)
+        self.__rectHeightSpinBox.setRange(1, 10000)
 
         self.__buttonBox = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel )
@@ -62,16 +70,23 @@ class OCODialog(QDialog):
         self.__refreshButton.clicked.connect(self.__refreshButtonClicked)
         self.__buttonBox.accepted.connect(self.accept)
         self.__buttonBox.rejected.connect(self.reject)
+        self.__cropToImageBounds.stateChanged.connect(self.__toggleCropSize)
+
 
         directorySelectorLayout.addWidget(self.__directoryTextField)
         directorySelectorLayout.addWidget(self.__directoryDialogButton)
 
         optionsLayout.addWidget(self.__exportReferenceCheckbox)
         optionsLayout.addWidget(self.__exportInvisibleLayersCheckBox)
+        optionsLayout.addWidget(self.__cropToImageBounds)
         self.__exportReferenceCheckbox.setChecked(True)
+
+        rectSizeLayout.addWidget(self.__rectWidthSpinBox)
+        rectSizeLayout.addWidget(self.__rectHeightSpinBox)
 
         formLayout.addRow(i18n("Destination:"), directorySelectorLayout) # pylint: disable=undefined-variable
         formLayout.addRow(i18n("Export options:"), optionsLayout) # pylint: disable=undefined-variable
+        formLayout.addRow(i18n("Export size:"), rectSizeLayout) # pylint: disable=undefined-variable
         #self.formLayout.addRow(
         #    i18n("Images extensions:"), self.formatsComboBox)
 
@@ -102,6 +117,19 @@ class OCODialog(QDialog):
     def exportInvisibleLayers(self):
         return self.__exportInvisibleLayersCheckBox.isChecked()
 
+    def cropLayers(self):
+        return self.__cropToImageBounds.isChecked()
+
+    def width(self):
+        return self.__rectWidthSpinBox.value()
+
+    def height(self):
+        return self.__rectHeightSpinBox.value()
+
+    def setResolution(self, w, h):
+        self.__rectWidthSpinBox.setValue(w)
+        self.__rectHeightSpinBox.setValue(h)
+
     def __selectDir(self):
         directory = QFileDialog.getExistingDirectory(
             self,
@@ -113,3 +141,9 @@ class OCODialog(QDialog):
 
     def __refreshButtonClicked(self):
         pass
+
+    def __toggleCropSize(self):
+        cropToLayer = self.__cropToImageBounds.isChecked()
+        self.__rectWidthSpinBox.setDisabled(cropToLayer)
+        self.__rectHeightSpinBox.setDisabled(cropToLayer)
+  

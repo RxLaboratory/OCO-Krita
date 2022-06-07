@@ -22,7 +22,7 @@
 import os, json
 import krita # pylint: disable=import-error
 from PyQt5.QtWidgets import (QMessageBox, QProgressDialog)
-from PyQt5.QtCore import (Qt)
+from PyQt5.QtCore import (Qt, QRect)
 from .dukrif import (DuKRIF_utils, DuKRIF_animation, DuKRIF_json, DuKRIF_io, DuKRIF_nodes) # pylint: disable=import-error
 from .ocodialog import OCODialog
 from .ocopy import oco
@@ -44,6 +44,12 @@ class OCOExporter(object):
             self.__kWindow = self.__kWindow.qwindow()
 
         self.__dialog = OCODialog()
+        self.exportPath = ""
+        self.exportReferenceLayers = True
+        self.exportInvisibleLayers = False
+        self.cropLayers = False
+        self.width = 1920
+        self.height = 1080
 
     def initialize(self):
         # Check if there's an active document
@@ -56,22 +62,26 @@ class OCOExporter(object):
         # Set default path next to doc
         dir = os.path.dirname(document.fileName())
         self.__dialog.setPath(dir)
+        self.__dialog.setResolution(document.width(), document.height())
 
         ok = self.__dialog.exec_()
         if not ok:
             return
 
-        exportPath = self.__dialog.path()
-        exportReferenceLayers = self.__dialog.exportReferenceLayers()
-        exportInvisibleLayers = self.__dialog.exportInvisibleLayers()
+        self.exportPath = self.__dialog.path()
+        self.exportReferenceLayers = self.__dialog.exportReferenceLayers()
+        self.exportInvisibleLayers = self.__dialog.exportInvisibleLayers()
+        self.cropLayers = self.__dialog.cropLayers()
+        self.width = self.__dialog.width()
+        self.height = self.__dialog.height()
 
         # Export !
 
-        self.export(document, exportPath, exportReferenceLayers, exportInvisibleLayers)
+        self.export(document)
 
         QMessageBox.information(self.__kWindow, "Finished", "Export to OCO completed.") 
 
-    def export(self, document, exportPath, exportReferenceLayers, exportInvisibleLayers):
+    def export(self, document):
         Application.setBatchmode(True) # pylint: disable=undefined-variable
 
         # Let's duplicate the document first
@@ -81,7 +91,7 @@ class OCOExporter(object):
         documentName = document.fileName() if document.fileName() else 'Untitled'  # noqa: E501
         fileName, extension = os.path.splitext(os.path.basename(documentName)) # pylint: disable=unused-variable
         
-        exportDir = os.path.join(exportPath, fileName + '.oco')
+        exportDir = os.path.join(self.exportPath, fileName + '.oco')
         self.mkdir(exportDir)
 
         self.progressdialog = QProgressDialog("Exporting cut-out asset...", "Cancel", 0, 100)
@@ -98,9 +108,7 @@ class OCOExporter(object):
                 document.rootNode(),
                 #self.formatsComboBox.currentText(),
                 'png',
-                documentDir,
-                exportReferenceLayers,
-                exportInvisibleLayers
+                documentDir
             )
         self.__docinfo['layers'] = nodes
 
@@ -128,7 +136,7 @@ class OCOExporter(object):
         except OSError as e:
             raise e
 
-    def exportLayers(self, document, parentNode, fileFormat, parentDir, exportReferenceLayers=True, exportInvisibleLayers=False):
+    def exportLayers(self, document, parentNode, fileFormat, parentDir):
         """ This method get all sub-nodes from the current node and export them in
             the defined format."""
 
@@ -146,10 +154,10 @@ class OCOExporter(object):
             if 'filter' in node.type():
                 continue
             # ignore invisible
-            if not exportInvisibleLayers and not node.visible():
+            if not self.exportInvisibleLayers and not node.visible():
                 continue
             # ignore reference
-            if not exportReferenceLayers and "_reference_" in nodeName:
+            if not self.exportReferenceLayers and "_reference_" in nodeName:
                 continue
             # ignore _ignore_
             if "_ignore_" in nodeName:
@@ -164,6 +172,10 @@ class OCOExporter(object):
             nodeInfo = DuKRIF_json.getNodeInfo(document, node)
             nodeInfo['fileType'] = fileFormat
             nodeInfo['reference'] = "_reference_" in nodeName
+            if not self.cropLayers:
+                nodeInfo['width'] = document.width()
+                nodeInfo['height'] = document.height()
+                nodeInfo['position'] = [ document.width() / 2, document.height() / 2 ]
 
             # translate blending mode to OCA
             if nodeInfo['blendingMode'] in oco.OCOBlendingModes:
@@ -241,10 +253,15 @@ class OCOExporter(object):
         imagePath = '{0}/{1}.{2}'.format( parentDir, imageName, fileFormat)
         imageFileName = imagePath
 
+        if self.cropLayers:
+            bounds = QRect()
+        else:
+            bounds = QRect(0, 0, self.width, self.height)
+
         opacity = node.opacity()
         node.setOpacity(255)
 
-        node.save(imageFileName, 1, 1, krita.InfoObject())
+        node.save(imageFileName, 1, 1, krita.InfoObject(), bounds)
 
         node.setOpacity(opacity)
         
