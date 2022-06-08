@@ -45,6 +45,7 @@ class OCOExporter(object):
 
         self.__dialog = OCODialog()
         self.exportPath = ""
+        self.exportDir = ""
         self.exportReferenceLayers = True
         self.exportInvisibleLayers = False
         self.cropLayers = False
@@ -91,6 +92,7 @@ class OCOExporter(object):
         documentName = document.fileName() if document.fileName() else 'Untitled'  # noqa: E501
         fileName, extension = os.path.splitext(os.path.basename(documentName)) # pylint: disable=unused-variable
         
+        self.exportDir = fileName + '.oco'
         exportDir = os.path.join(self.exportPath, fileName + '.oco')
         self.mkdir(exportDir)
 
@@ -148,7 +150,7 @@ class OCOExporter(object):
                 break
 
             newDir = ''
-            nodeName = node.name().strip()
+            nodeName = node.name().strip().replace('/','-').replace('*', ' ')
 
             # ignore filters
             if 'filter' in node.type():
@@ -169,7 +171,7 @@ class OCOExporter(object):
                 DuKRIF_nodes.disableIgnoreNodes(node)
                 node = DuKRIF_nodes.flattenNode(document, node, i, parentNode)
 
-            nodeInfo = DuKRIF_json.getNodeInfo(document, node)
+            nodeInfo = DuKRIF_json.getNodeInfo(document, node, useDocumentSize=(not self.cropLayers))
             nodeInfo['fileType'] = fileFormat
             nodeInfo['reference'] = "_reference_" in nodeName
             if not self.cropLayers:
@@ -201,7 +203,7 @@ class OCOExporter(object):
         return nodes
 
     def exportNode(self, document, node, nodeInfo, fileFormat, parentDir):
-        nodeName = node.name().strip()
+        nodeName = node.name().strip().replace('/','-').replace('*', ' ')
 
         self.progressdialog.setLabelText(i18n("Exporting") + " " + nodeName) # pylint: disable=undefined-variable
 
@@ -249,7 +251,8 @@ class OCOExporter(object):
             frameInfo = DuKRIF_json.createKeyframeInfo("_blank", "", frameNumber)
             return frameInfo
 
-        imageName = '{0}_{1}'.format( node.name().strip(), DuKRIF_utils.intToStr(frameNumber))
+        nodeName = node.name().strip().replace('/','-').replace('*', ' ')
+        imageName = '{0}_{1}'.format( nodeName, DuKRIF_utils.intToStr(frameNumber))
         imagePath = '{0}/{1}.{2}'.format( parentDir, imageName, fileFormat)
         imageFileName = imagePath
 
@@ -267,9 +270,11 @@ class OCOExporter(object):
         
         # TODO check if the file was correctly exported. The Node.save() method always reports False :/
 
-        frameInfo = DuKRIF_json.getKeyframeInfo(document, node, frameNumber, useDocumentSize=False)
-        frameInfo['fileName'] = imagePath
+        frameInfo = DuKRIF_json.getKeyframeInfo(document, node, frameNumber, useDocumentSize=(not self.cropLayers))
+        frameInfo['fileName'] = self.getRelativePath(imagePath)
 
         return frameInfo
 
+    def getRelativePath(self, path):
+        return path.replace(os.path.join(self.exportPath, self.exportDir) + '/', '')
 
